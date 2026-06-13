@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>検索</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav>
+    <a href="/home">ホーム</a>
+    <a href="/search">検索</a>
+    <a href="/members">メンバー</a>
+    <a href="/logout">ログアウト</a>
+</nav>
+
+<div class="container">
+
+    <h1>反省検索</h1>
+
+    <form method="POST">
+
+        <input
+            type="text"
+            name="keyword"
+            placeholder="日付・名前・パート・キーワード"
+            required>
+
+        <button>
+            検索
+        </button>
+
+    </form>
+
+    <hr>
+
+    {% for row in results %}
+
+    <div class="card">
+
+        <h3>{{ row["date"] }}</h3>
+
+        <p>
+            {{ row["name"] }}
+            （{{ row["part"] }}）
+        </p>
+
+        <p>
+            {{ row["reflection"] }}
+        </p>
+
+    </div>
+
+    {% endfor %}
+
+</div>
+
+</body>
+</html>

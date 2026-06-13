@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ログイン</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container">
+
+    <h1>吹奏楽部反省アプリ</h1>
+
+    <form method="POST">
+
+        <input
+            type="text"
+            name="group_code"
+            placeholder="団体コード"
+            required>
+
+        <button type="submit">
+            ログイン
+        </button>
+
+    </form>
+
+    <a class="menu-btn" href="/create_group">
+        団体作成
+    </a>
+
+</div>
+
+</body>
+</html>

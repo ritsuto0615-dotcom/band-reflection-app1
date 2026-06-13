@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>団体作成</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container">
+
+    <h1>団体作成</h1>
+
+    {% if code %}
+
+        <h2>団体コード</h2>
+
+        <div class="code">
+            {{ code }}
+        </div>
+
+        <a class="menu-btn" href="/">
+            ログインへ
+        </a>
+
+    {% else %}
+
+    <form method="POST">
+
+        <input
+            type="text"
+            name="group_name"
+            placeholder="団体名"
+            required>
+
+        <button>
+            作成
+        </button>
+
+    </form>
+
+    {% endif %}
+
+</div>
+
+</body>
+</html>

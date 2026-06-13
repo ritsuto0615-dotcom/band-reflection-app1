@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>反省一覧</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav>
+    <a href="/home">ホーム</a>
+    <a href="/search">検索</a>
+    <a href="/members">メンバー</a>
+    <a href="/logout">ログアウト</a>
+</nav>
+
+<div class="container">
+
+    <h1>反省一覧</h1>
+
+    {% for row in rows %}
+
+    <div class="card">
+
+        <h3>{{ row["date"] }}</h3>
+
+        <p>
+            {{ row["name"] }}
+            （{{ row["part"] }}）
+        </p>
+
+        <p>
+            {{ row["reflection"] }}
+        </p>
+
+        <a href="/edit_reflection/{{ row['id'] }}">
+            編集
+        </a>
+
+<       a href="/delete_reflection/{{ row['id'] }}"
+          onclick="return confirm('削除しますか？')">
+            削除
+        </a>
+
+    </div>
+
+    {% endfor %}
+
+</div>
+
+</body>
+</html>

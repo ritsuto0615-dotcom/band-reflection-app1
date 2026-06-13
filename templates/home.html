@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ホーム</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav>
+
+    <a href="/home">ホーム</a>
+    <a href="/search">検索</a>
+    <a href="/members">メンバー</a>
+    <a href="/logout">ログアウト</a>
+
+</nav>
+
+<div class="container">
+
+    <h1>{{ group["group_name"] }}</h1>
+
+    <p>
+        団体コード：
+        {{ group["group_code"] }}
+    </p>
+
+    <a class="menu-btn" href="/add_reflection">
+        個人反省入力
+    </a>
+
+    <a class="menu-btn" href="/add_group_reflection">
+        全体反省入力
+    </a>
+
+    <a class="menu-btn" href="/add_part_reflection">
+        パート反省入力
+    </a>
+
+    <a class="menu-btn" href="/reflections">
+        反省一覧
+    </a>
+
+    <a class="menu-btn" href="/members">
+        メンバー管理
+    </a>
+
+    <a class="menu-btn" href="/edit_group">
+        団体名変更
+    </a>
+
+</div>
+
+</body>
+</html>

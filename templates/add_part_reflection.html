@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>パート反省入力</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav>
+    <a href="/home">ホーム</a>
+    <a href="/search">検索</a>
+    <a href="/members">メンバー</a>
+    <a href="/logout">ログアウト</a>
+</nav>
+
+<div class="container">
+
+    <h1>パート反省入力</h1>
+
+    <form method="POST">
+
+        <input type="date" name="date" required>
+
+        <input
+            type="text"
+            name="part"
+            placeholder="パート名"
+            required>
+
+        <textarea
+            name="reflection"
+            rows="10"
+            placeholder="パート反省"
+            required></textarea>
+
+        <button>
+            保存
+        </button>
+
+    </form>
+
+</div>
+
+</body>
+</html>

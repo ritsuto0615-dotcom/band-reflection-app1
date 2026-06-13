@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>個人反省入力</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static',
+          filename='style.css') }}">
+</head>
+<body>
+
+<nav>
+    <a href="/home">ホーム</a>
+    <a href="/search">検索</a>
+    <a href="/members">メンバー</a>
+    <a href="/logout">ログアウト</a>
+</nav>
+
+<div class="container">
+
+    <h1>個人反省入力</h1>
+
+    <form method="POST">
+
+        <label>日付</label>
+
+        <input
+            type="date"
+            name="date"
+            required>
+
+        <label>名前</label>
+
+        <select
+            id="name"
+            name="name"
+            required>
+
+            {% for member in members %}
+
+            <option
+                value="{{ member['name'] }}"
+                data-part="{{ member['part'] }}">
+
+                {{ member['name'] }}
+
+            </option>
+
+            {% endfor %}
+
+        </select>
+
+        <label>パート</label>
+
+        <input
+            type="text"
+            id="part"
+            name="part"
+            readonly>
+
+        <label>反省内容</label>
+
+        <textarea
+            name="reflection"
+            rows="8"
+            placeholder="今日の反省を書いてください"
+            required></textarea>
+
+        <button type="submit">
+            保存
+        </button>
+
+    </form>
+
+</div>
+
+<script>
+
+const nameSelect =
+document.getElementById("name");
+
+const partInput =
+document.getElementById("part");
+
+function updatePart(){
+
+    const option =
+    nameSelect.options[
+        nameSelect.selectedIndex
+    ];
+
+    partInput.value =
+    option.dataset.part;
+}
+
+nameSelect.addEventListener(
+    "change",
+    updatePart
+);
+
+updatePart();
+
+</script>
+
+</body>
+</html>
