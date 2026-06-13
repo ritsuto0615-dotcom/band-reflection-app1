@@ -9,6 +9,12 @@ from functools import wraps
 
 app = Flask(__name__)
 
+app.config["SECRET_KEY"] = "band_app_jwt_super_secret_2026"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
 # ======================
 # 設定
 # ======================
