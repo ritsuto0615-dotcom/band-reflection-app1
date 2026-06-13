@@ -117,17 +117,24 @@ def login():
 
         code = request.form["group_code"]
 
+        print("入力コード:", code)
+
         conn = get_db()
+
         group = conn.execute(
             "SELECT * FROM groups WHERE group_code=?",
             (code,)
         ).fetchone()
+
+        print("検索結果:", group)
 
         conn.close()
 
         if group:
             session["group_id"] = group["id"]
             return redirect("/home")
+
+        print("団体が見つかりません")
 
     return render_template("login.html")
 
