@@ -1,34 +1,39 @@
-from flask import Flask, render_template, request, redirect, url_for, make_response
+from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-import jwt
-import datetime
+from flask_login import (
+    LoginManager, UserMixin,
+    login_user, login_required,
+    logout_user, current_user
+)
 import random
 import string
 import os
-from functools import wraps
+from datetime import timedelta
 
+# ======================
+# アプリ初期化
+# ======================
 app = Flask(__name__)
 
-app.config["SECRET_KEY"] = "band_app_jwt_super_secret_2026"
+app.config["SECRET_KEY"] = "band_app_super_secret_2026_stable"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(app)
-
-# ======================
-# 設定
-# ======================
-app.config["SECRET_KEY"] = "band_app_jwt_super_secret_2026"
+# セッション安定化
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 
 db = SQLAlchemy(app)
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+login_manager.session_protection = "strong"
 
 
 # ======================
-# モデル（変更なし）
+# モデル
 # ======================
-class Group(db.Model):
+class Group(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     group_name = db.Column(db.String(100))
     group_code = db.Column(db.String(20), unique=True)
@@ -65,44 +70,19 @@ class PartReflection(db.Model):
     reflection = db.Column(db.Text)
 
 
+# ======================
+# DB作成
+# ======================
 with app.app_context():
     db.create_all()
 
 
 # ======================
-# JWT生成
+# ユーザーロード
 # ======================
-def create_token(group_id):
-    payload = {
-        "group_id": group_id,
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
-    }
-    return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
-
-
-# ======================
-# JWT認証デコレータ
-# ======================
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.cookies.get("token")
-
-        if not token:
-            return redirect(url_for("login"))
-
-        try:
-            data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-            group = Group.query.get(data["group_id"])
-        except:
-            return redirect(url_for("login"))
-
-        if not group:
-            return redirect(url_for("login"))
-
-        return f(group, *args, **kwargs)
-
-    return decorated
+@login_manager.user_loader
+def load_user(user_id):
+    return Group.query.get(int(user_id))
 
 
 # ======================
@@ -113,7 +93,7 @@ def generate_code():
 
 
 # ======================
-# ログイン（JWT化）
+# ログイン
 # ======================
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -123,12 +103,10 @@ def login():
         group = Group.query.filter_by(group_code=code).first()
 
         if group:
-            token = create_token(group.id)
+            login_user(group)
 
-            resp = make_response(redirect(url_for("home")))
-            resp.set_cookie("token", token, httponly=True, max_age=7*24*60*60)
-
-            return resp
+            # ★重要：セッション永続化
+            return redirect(url_for("home"))
 
         return render_template("login.html", error="コードが違います")
 
@@ -136,50 +114,65 @@ def login():
 
 
 # ======================
+# 団体作成
+# ======================
+@app.route("/create_group", methods=["GET", "POST"])
+def create_group():
+    if request.method == "POST":
+        name = request.form["group_name"]
+        code = generate_code()
+
+        g = Group(group_name=name, group_code=code)
+        db.session.add(g)
+        db.session.commit()
+
+        return render_template("create_group.html", code=code)
+
+    return render_template("create_group.html", code=None)
+
+
+# ======================
 # ホーム
 # ======================
 @app.route("/home")
-@token_required
-def home(group):
-    return render_template("home.html", group=group)
+@login_required
+def home():
+    return render_template("home.html", group=current_user)
 
 
 # ======================
 # ログアウト
 # ======================
 @app.route("/logout")
+@login_required
 def logout():
-    resp = make_response(redirect(url_for("login")))
-    resp.delete_cookie("token")
-    return resp
+    logout_user()
+    return redirect(url_for("login"))
 
 
 # ======================
 # メンバー
 # ======================
 @app.route("/members", methods=["GET", "POST"])
-@token_required
-def members(group):
+@login_required
+def members():
     if request.method == "POST":
         m = Member(
-            group_id=group.id,
+            group_id=current_user.id,
             name=request.form["name"],
             part=request.form["part"]
         )
         db.session.add(m)
         db.session.commit()
 
-    members = Member.query.filter_by(group_id=group.id).all()
+    members = Member.query.filter_by(group_id=current_user.id).all()
     return render_template("members.html", members=members)
 
 
-# ======================
-# メンバー削除
-# ======================
 @app.route("/delete_member/<int:id>")
-@token_required
-def delete_member(group, id):
-    m = Member.query.filter_by(id=id, group_id=group.id).first()
+@login_required
+def delete_member(id):
+    m = Member.query.filter_by(id=id, group_id=current_user.id).first()
     if m:
         db.session.delete(m)
         db.session.commit()
@@ -190,11 +183,11 @@ def delete_member(group, id):
 # 個人反省
 # ======================
 @app.route("/add_reflection", methods=["GET", "POST"])
-@token_required
-def add_reflection(group):
+@login_required
+def add_reflection():
     if request.method == "POST":
         r = Reflection(
-            group_id=group.id,
+            group_id=current_user.id,
             date=request.form["date"],
             name=request.form["name"],
             part=request.form["part"],
@@ -207,25 +200,18 @@ def add_reflection(group):
     return render_template("add_reflection.html")
 
 
-# ======================
-# 一覧
-# ======================
 @app.route("/reflections")
-@token_required
-def reflections(group):
-    rows = Reflection.query.filter_by(group_id=group.id)\
+@login_required
+def reflections():
+    rows = Reflection.query.filter_by(group_id=current_user.id)\
         .order_by(Reflection.date.desc()).all()
-
     return render_template("reflections.html", rows=rows)
 
 
-# ======================
-# 編集
-# ======================
 @app.route("/edit_reflection/<int:id>", methods=["GET", "POST"])
-@token_required
-def edit_reflection(group, id):
-    row = Reflection.query.filter_by(id=id, group_id=group.id).first()
+@login_required
+def edit_reflection(id):
+    row = Reflection.query.filter_by(id=id, group_id=current_user.id).first()
 
     if request.method == "POST":
         if row:
@@ -236,13 +222,10 @@ def edit_reflection(group, id):
     return render_template("edit_reflection.html", row=row)
 
 
-# ======================
-# 削除
-# ======================
 @app.route("/delete_reflection/<int:id>")
-@token_required
-def delete_reflection(group, id):
-    r = Reflection.query.filter_by(id=id, group_id=group.id).first()
+@login_required
+def delete_reflection(id):
+    r = Reflection.query.filter_by(id=id, group_id=current_user.id).first()
     if r:
         db.session.delete(r)
         db.session.commit()
@@ -253,11 +236,11 @@ def delete_reflection(group, id):
 # 全体反省
 # ======================
 @app.route("/add_group_reflection", methods=["GET", "POST"])
-@token_required
-def add_group_reflection(group):
+@login_required
+def add_group_reflection():
     if request.method == "POST":
         g = GroupReflection(
-            group_id=group.id,
+            group_id=current_user.id,
             date=request.form["date"],
             reflection=request.form["reflection"]
         )
@@ -269,9 +252,9 @@ def add_group_reflection(group):
 
 
 @app.route("/group_reflections")
-@token_required
-def group_reflections(group):
-    rows = GroupReflection.query.filter_by(group_id=group.id)\
+@login_required
+def group_reflections():
+    rows = GroupReflection.query.filter_by(group_id=current_user.id)\
         .order_by(GroupReflection.date.desc()).all()
 
     return render_template("group_reflections.html", rows=rows)
@@ -281,11 +264,11 @@ def group_reflections(group):
 # パート反省
 # ======================
 @app.route("/add_part_reflection", methods=["GET", "POST"])
-@token_required
-def add_part_reflection(group):
+@login_required
+def add_part_reflection():
     if request.method == "POST":
         p = PartReflection(
-            group_id=group.id,
+            group_id=current_user.id,
             date=request.form["date"],
             part=request.form["part"],
             reflection=request.form["reflection"]
@@ -298,9 +281,9 @@ def add_part_reflection(group):
 
 
 @app.route("/part_reflections")
-@token_required
-def part_reflections(group):
-    rows = PartReflection.query.filter_by(group_id=group.id)\
+@login_required
+def part_reflections():
+    rows = PartReflection.query.filter_by(group_id=current_user.id)\
         .order_by(PartReflection.date.desc()).all()
 
     return render_template("part_reflections.html", rows=rows)
@@ -310,15 +293,15 @@ def part_reflections(group):
 # 検索
 # ======================
 @app.route("/search", methods=["GET", "POST"])
-@token_required
-def search(group):
+@login_required
+def search():
     results = []
 
     if request.method == "POST":
         keyword = request.form["keyword"]
 
         results = Reflection.query.filter(
-            Reflection.group_id == group.id,
+            Reflection.group_id == current_user.id,
             (
                 Reflection.name.like(f"%{keyword}%") |
                 Reflection.part.like(f"%{keyword}%") |
@@ -330,5 +313,8 @@ def search(group):
     return render_template("search.html", results=results)
 
 
+# ======================
+# 起動
+# ======================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
