@@ -92,14 +92,13 @@ const partInput =
 document.getElementById("part");
 
 function updatePart(){
+    const option = nameSelect.options[nameSelect.selectedIndex];
 
-    const option =
-    nameSelect.options[
-        nameSelect.selectedIndex
-    ];
-
-    partInput.value =
-    option.dataset.part;
+    if(option && option.dataset.part){
+        partInput.value = option.dataset.part;
+    } else {
+        partInput.value = "";
+    }
 }
 
 nameSelect.addEventListener(

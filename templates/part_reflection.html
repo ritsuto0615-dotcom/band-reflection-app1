@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>パート反省一覧</title>
+</head>
+<body>
+
+<h1>パート反省一覧</h1>
+
+{% for r in rows %}
+<p>
+{{ r.date }}|{{ r.part }}
+<br>
+{{ r.reflection }}
+</p>
+<hr>
+{% endfor %}
+
+<a href="/home">戻る</a>
+
+</body>
+</html>

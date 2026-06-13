@@ -387,3 +387,86 @@ hr{
     }
 
 }
+
+/* =========================
+   全体反省・パート反省
+   共通カードデザイン
+========================= */
+
+.reflection-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px;
+    margin: 12px 0;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    transition: 0.2s;
+}
+
+.reflection-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+
+/* ヘッダー部分（日付・パート） */
+.reflection-header {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+}
+
+.reflection-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #333;
+}
+
+.reflection-header p {
+    margin: 4px 0 0;
+    font-size: 14px;
+    color: #666;
+}
+
+/* 本文 */
+.reflection-body {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #222;
+    white-space: pre-wrap; /* 改行保持 */
+}
+
+/* ボタンエリア */
+.reflection-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+/* 編集ボタン */
+.edit-btn {
+    background: #4a90e2;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 13px;
+}
+
+/* 削除ボタン */
+.delete-btn {
+    background: #e74c3c;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 13px;
+}
+
+/* hover */
+.edit-btn:hover {
+    background: #3b7bd1;
+}
+
+.delete-btn:hover {
+    background: #c0392b;
+}

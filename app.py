@@ -1,592 +1,328 @@
-from flask import Flask, render_template, request, redirect, session, url_for
-import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, make_response
+from flask_sqlalchemy import SQLAlchemy
+import jwt
+import datetime
 import random
 import string
-
-app = Flask(__name__)
-app.secret_key = "band_secret_key"
-
-
-# ======================
-# DB
-# ======================
-
-def get_db():
-    conn = sqlite3.connect("app.db")
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def init_db():
-    conn = get_db()
-    cur = conn.cursor()
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS groups(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        group_name TEXT,
-        group_code TEXT UNIQUE
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS members(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        group_id INTEGER,
-        name TEXT,
-        part TEXT
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS reflections(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        group_id INTEGER,
-        date TEXT,
-        name TEXT,
-        part TEXT,
-        reflection TEXT
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS group_reflections(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        group_id INTEGER,
-        date TEXT,
-        reflection TEXT
-    )
-    """)
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS part_reflections(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        group_id INTEGER,
-        date TEXT,
-        part TEXT,
-        reflection TEXT
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
-init_db()
-
-
-# ======================
-# ログインチェック
-# ======================
-
-
+import os
 from functools import wraps
 
-def login_required(f):
+app = Flask(__name__)
+
+# ======================
+# 設定
+# ======================
+app.config["SECRET_KEY"] = "band_app_jwt_super_secret_2026"
+
+db = SQLAlchemy(app)
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+
+# ======================
+# モデル（変更なし）
+# ======================
+class Group(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_name = db.Column(db.String(100))
+    group_code = db.Column(db.String(20), unique=True)
+
+
+class Member(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer)
+    name = db.Column(db.String(100))
+    part = db.Column(db.String(100))
+
+
+class Reflection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer)
+    date = db.Column(db.String(20))
+    name = db.Column(db.String(100))
+    part = db.Column(db.String(100))
+    reflection = db.Column(db.Text)
+
+
+class GroupReflection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer)
+    date = db.Column(db.String(20))
+    reflection = db.Column(db.Text)
+
+
+class PartReflection(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer)
+    date = db.Column(db.String(20))
+    part = db.Column(db.String(100))
+    reflection = db.Column(db.Text)
+
+
+with app.app_context():
+    db.create_all()
+
+
+# ======================
+# JWT生成
+# ======================
+def create_token(group_id):
+    payload = {
+        "group_id": group_id,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
+    }
+    return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+
+
+# ======================
+# JWT認証デコレータ
+# ======================
+def token_required(f):
     @wraps(f)
-    def decorated_function(*args, **kwargs):
+    def decorated(*args, **kwargs):
+        token = request.cookies.get("token")
 
-        if "group_id" not in session:
-            return redirect("/")
+        if not token:
+            return redirect(url_for("login"))
 
-        return f(*args, **kwargs)
+        try:
+            data = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+            group = Group.query.get(data["group_id"])
+        except:
+            return redirect(url_for("login"))
 
-    return decorated_function
+        if not group:
+            return redirect(url_for("login"))
+
+        return f(group, *args, **kwargs)
+
+    return decorated
 
 
 # ======================
-# 団体コード生成
+# コード生成
 # ======================
-
 def generate_code():
-    return ''.join(
-        random.choices(
-            string.ascii_uppercase + string.digits,
-            k=8
-        )
-    )
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
 
 # ======================
-# ログイン
+# ログイン（JWT化）
 # ======================
-
 @app.route("/", methods=["GET", "POST"])
 def login():
-
     if request.method == "POST":
-
         code = request.form["group_code"]
 
-        print("入力コード:", code)
-
-        conn = get_db()
-
-        group = conn.execute(
-            "SELECT * FROM groups WHERE group_code=?",
-            (code,)
-        ).fetchone()
-
-        print("検索結果:", group)
-
-        conn.close()
+        group = Group.query.filter_by(group_code=code).first()
 
         if group:
-            session["group_id"] = group["id"]
-            return redirect("/home")
+            token = create_token(group.id)
 
-        print("団体が見つかりません")
+            resp = make_response(redirect(url_for("home")))
+            resp.set_cookie("token", token, httponly=True, max_age=7*24*60*60)
+
+            return resp
+
+        return render_template("login.html", error="コードが違います")
 
     return render_template("login.html")
 
 
 # ======================
-# 団体作成
-# ======================
-
-@app.route("/create_group", methods=["GET", "POST"])
-def create_group():
-
-    if request.method == "POST":
-
-        name = request.form["group_name"]
-        code = generate_code()
-
-        conn = get_db()
-
-        conn.execute(
-            """
-            INSERT INTO groups
-            (group_name,group_code)
-            VALUES (?,?)
-            """,
-            (name, code)
-        )
-
-        conn.commit()
-        conn.close()
-
-        return render_template(
-            "create_group.html",
-            code=code
-        )
-
-    return render_template(
-        "create_group.html",
-        code=None
-    )
-
-
-# ======================
 # ホーム
 # ======================
-
 @app.route("/home")
-@login_required
-def home():
-
-    if "group_id" not in session:
-        return redirect("/")
-
-    conn = get_db()
-
-    group = conn.execute(
-        "SELECT * FROM groups WHERE id=?",
-        (session["group_id"],)
-    ).fetchone()
-
-    conn.close()
-
-    return render_template(
-        "home.html",
-        group=group
-    )
+@token_required
+def home(group):
+    return render_template("home.html", group=group)
 
 
 # ======================
 # ログアウト
 # ======================
-
 @app.route("/logout")
 def logout():
-
-    session.clear()
-
-    return redirect("/")
-
-
-# ======================
-# 団体名変更
-# ======================
-
-@app.route("/edit_group", methods=["GET", "POST"])
-def edit_group():
-
-    if "group_id" not in session:
-        return redirect("/")
-
-    conn = get_db()
-
-    if request.method == "POST":
-
-        name = request.form["group_name"]
-
-        conn.execute(
-            """
-            UPDATE groups
-            SET group_name=?
-            WHERE id=?
-            """,
-            (name, session["group_id"])
-        )
-
-        conn.commit()
-
-    group = conn.execute(
-        "SELECT * FROM groups WHERE id=?",
-        (session["group_id"],)
-    ).fetchone()
-
-    conn.close()
-
-    return render_template(
-        "edit_group.html",
-        group=group
-    )
+    resp = make_response(redirect(url_for("login")))
+    resp.delete_cookie("token")
+    return resp
 
 
 # ======================
-# メンバー管理
+# メンバー
 # ======================
-
 @app.route("/members", methods=["GET", "POST"])
-@login_required
-def members():
-
-    if "group_id" not in session:
-        return redirect("/")
-
-    conn = get_db()
-
+@token_required
+def members(group):
     if request.method == "POST":
-
-        name = request.form["name"]
-        part = request.form["part"]
-
-        conn.execute(
-            """
-            INSERT INTO members
-            (group_id,name,part)
-            VALUES (?,?,?)
-            """,
-            (session["group_id"], name, part)
+        m = Member(
+            group_id=group.id,
+            name=request.form["name"],
+            part=request.form["part"]
         )
+        db.session.add(m)
+        db.session.commit()
 
-        conn.commit()
-
-    members = conn.execute(
-        """
-        SELECT * FROM members
-        WHERE group_id=?
-        """,
-        (session["group_id"],)
-    ).fetchall()
-
-    conn.close()
-
-    return render_template(
-        "members.html",
-        members=members
-    )
+    members = Member.query.filter_by(group_id=group.id).all()
+    return render_template("members.html", members=members)
 
 
+# ======================
+# メンバー削除
+# ======================
 @app.route("/delete_member/<int:id>")
-def delete_member(id):
-
-    conn = get_db()
-
-    conn.execute(
-    """
-    DELETE FROM members
-    WHERE id=?
-    AND group_id=?
-    """,
-    (id, session["group_id"])
-    )
-
-    conn.commit()
-    conn.close()
-
+@token_required
+def delete_member(group, id):
+    m = Member.query.filter_by(id=id, group_id=group.id).first()
+    if m:
+        db.session.delete(m)
+        db.session.commit()
     return redirect("/members")
 
 
 # ======================
 # 個人反省
 # ======================
-
 @app.route("/add_reflection", methods=["GET", "POST"])
-@login_required
-def add_reflection():
-
-    if "group_id" not in session:
-        return redirect("/")
-
-    conn = get_db()
-
-    members = conn.execute(
-        """
-        SELECT * FROM members
-        WHERE group_id=?
-        """,
-        (session["group_id"],)
-    ).fetchall()
-
+@token_required
+def add_reflection(group):
     if request.method == "POST":
-
-        conn.execute(
-            """
-            INSERT INTO reflections
-            (group_id,date,name,part,reflection)
-            VALUES (?,?,?,?,?)
-            """,
-            (
-                session["group_id"],
-                request.form["date"],
-                request.form["name"],
-                request.form["part"],
-                request.form["reflection"]
-            )
+        r = Reflection(
+            group_id=group.id,
+            date=request.form["date"],
+            name=request.form["name"],
+            part=request.form["part"],
+            reflection=request.form["reflection"]
         )
-
-        conn.commit()
-        conn.close()
-
+        db.session.add(r)
+        db.session.commit()
         return redirect("/reflections")
 
-    conn.close()
-
-    return render_template(
-        "add_reflection.html",
-        members=members
-    )
-
-
-# ======================
-# 全体反省
-# ======================
-
-@app.route("/add_group_reflection", methods=["GET", "POST"])
-def add_group_reflection():
-
-    if request.method == "POST":
-
-        conn = get_db()
-
-        conn.execute(
-            """
-            INSERT INTO group_reflections
-            (group_id,date,reflection)
-            VALUES (?,?,?)
-            """,
-            (
-                session["group_id"],
-                request.form["date"],
-                request.form["reflection"]
-            )
-        )
-
-        conn.commit()
-        conn.close()
-
-        return redirect("/home")
-
-    return render_template(
-        "add_group_reflection.html"
-    )
-
-
-# ======================
-# パート反省
-# ======================
-
-@app.route("/add_part_reflection", methods=["GET", "POST"])
-def add_part_reflection():
-
-    if request.method == "POST":
-
-        conn = get_db()
-
-        conn.execute(
-            """
-            INSERT INTO part_reflections
-            (group_id,date,part,reflection)
-            VALUES (?,?,?,?)
-            """,
-            (
-                session["group_id"],
-                request.form["date"],
-                request.form["part"],
-                request.form["reflection"]
-            )
-        )
-
-        conn.commit()
-        conn.close()
-
-        return redirect("/home")
-
-    return render_template(
-        "add_part_reflection.html"
-    )
+    return render_template("add_reflection.html")
 
 
 # ======================
 # 一覧
 # ======================
-
 @app.route("/reflections")
-def reflections():
+@token_required
+def reflections(group):
+    rows = Reflection.query.filter_by(group_id=group.id)\
+        .order_by(Reflection.date.desc()).all()
 
-    conn = get_db()
-
-    rows = conn.execute(
-        """
-        SELECT * FROM reflections
-        WHERE group_id=?
-        ORDER BY date DESC
-        """,
-        (session["group_id"],)
-    ).fetchall()
-
-    conn.close()
-
-    return render_template(
-        "reflections.html",
-        rows=rows
-    )
+    return render_template("reflections.html", rows=rows)
 
 
 # ======================
-# 反省編集
+# 編集
 # ======================
-
-@app.route(
-    "/edit_reflection/<int:id>",
-    methods=["GET", "POST"]
-)
-def edit_reflection(id):
-
-    conn = get_db()
+@app.route("/edit_reflection/<int:id>", methods=["GET", "POST"])
+@token_required
+def edit_reflection(group, id):
+    row = Reflection.query.filter_by(id=id, group_id=group.id).first()
 
     if request.method == "POST":
-
-        reflection = request.form["reflection"]
-
-        conn.execute(
-            """
-            UPDATE reflections
-            SET reflection=?
-            WHERE id=?
-            AND group_id=?
-            """,
-            (
-                reflection,
-                id,
-                session["group_id"]
-            )
-        )
-
-        conn.commit()
-
+        if row:
+            row.reflection = request.form["reflection"]
+            db.session.commit()
         return redirect("/reflections")
 
-    conn.execute(
-    """
-    DELETE FROM members
-    WHERE id=?
-    AND group_id=?
-    """,
-    (id, session["group_id"])
-)
-
-    conn.close()
-
-    return render_template(
-        "edit_reflection.html",
-        row=row
-    )
+    return render_template("edit_reflection.html", row=row)
 
 
 # ======================
-# 反省削除
+# 削除
 # ======================
-
 @app.route("/delete_reflection/<int:id>")
-def delete_reflection(id):
-
-    conn = get_db()
-
-    conn.execute(
-        """
-        DELETE FROM reflections
-        WHERE id=?
-        AND group_id=?
-        """,
-        (id, session["group_id"])
-    )
-
-    conn.commit()
-    conn.close()
-
+@token_required
+def delete_reflection(group, id):
+    r = Reflection.query.filter_by(id=id, group_id=group.id).first()
+    if r:
+        db.session.delete(r)
+        db.session.commit()
     return redirect("/reflections")
+
+
+# ======================
+# 全体反省
+# ======================
+@app.route("/add_group_reflection", methods=["GET", "POST"])
+@token_required
+def add_group_reflection(group):
+    if request.method == "POST":
+        g = GroupReflection(
+            group_id=group.id,
+            date=request.form["date"],
+            reflection=request.form["reflection"]
+        )
+        db.session.add(g)
+        db.session.commit()
+        return redirect("/group_reflections")
+
+    return render_template("add_group_reflection.html")
+
+
+@app.route("/group_reflections")
+@token_required
+def group_reflections(group):
+    rows = GroupReflection.query.filter_by(group_id=group.id)\
+        .order_by(GroupReflection.date.desc()).all()
+
+    return render_template("group_reflections.html", rows=rows)
+
+
+# ======================
+# パート反省
+# ======================
+@app.route("/add_part_reflection", methods=["GET", "POST"])
+@token_required
+def add_part_reflection(group):
+    if request.method == "POST":
+        p = PartReflection(
+            group_id=group.id,
+            date=request.form["date"],
+            part=request.form["part"],
+            reflection=request.form["reflection"]
+        )
+        db.session.add(p)
+        db.session.commit()
+        return redirect("/part_reflections")
+
+    return render_template("add_part_reflection.html")
+
+
+@app.route("/part_reflections")
+@token_required
+def part_reflections(group):
+    rows = PartReflection.query.filter_by(group_id=group.id)\
+        .order_by(PartReflection.date.desc()).all()
+
+    return render_template("part_reflections.html", rows=rows)
 
 
 # ======================
 # 検索
 # ======================
-
 @app.route("/search", methods=["GET", "POST"])
-def search():
-
+@token_required
+def search(group):
     results = []
 
     if request.method == "POST":
-
         keyword = request.form["keyword"]
 
-        conn = get_db()
-
-        results = conn.execute(
-            """
-            SELECT * FROM reflections
-            WHERE group_id=?
-            AND (
-                name LIKE ?
-                OR part LIKE ?
-                OR reflection LIKE ?
-                OR date LIKE ?
-            )
-            """,
+        results = Reflection.query.filter(
+            Reflection.group_id == group.id,
             (
-                session["group_id"],
-                f"%{keyword}%",
-                f"%{keyword}%",
-                f"%{keyword}%",
-                f"%{keyword}%"
+                Reflection.name.like(f"%{keyword}%") |
+                Reflection.part.like(f"%{keyword}%") |
+                Reflection.reflection.like(f"%{keyword}%") |
+                Reflection.date.like(f"%{keyword}%")
             )
-        ).fetchall()
+        ).all()
 
-        conn.close()
+    return render_template("search.html", results=results)
 
-    return render_template(
-        "search.html",
-        results=results
-    )
-
-
-import os
 
 if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 5000))
-    )
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
