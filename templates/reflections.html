@@ -2,45 +2,63 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
     <title>反省一覧</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
 <nav>
-    <a href="/home">ホーム</a>
-    <a href="/search">検索</a>
-    <a href="/members">メンバー</a>
-    <a href="/logout">ログアウト</a>
+    <a href="/home">🏠 ホーム</a>
+    <a href="/search">🔍 検索</a>
+    <a href="/members">👥 メンバー</a>
+    <a href="/logout">🚪 ログアウト</a>
 </nav>
 
 <div class="container">
 
-    <h1>反省一覧</h1>
+    <h1>📚 反省一覧</h1>
 
     {% for row in rows %}
 
-    <div class="card">
+    <div class="card reflection-card">
 
-        <h3>{{ row["date"] }}</h3>
+        <div class="reflection-header">
 
-        <p>
-            {{ row["name"] }}
-            （{{ row["part"] }}）
-        </p>
+            <h3>📅 {{ row["date"] }}</h3>
 
-        <p>
+            <p>
+                👤 {{ row["name"] }}
+                （{{ row["part"] }}）
+            </p>
+
+        </div>
+
+        <div class="reflection-body">
+
             {{ row["reflection"] }}
-        </p>
 
-        <a href="/edit_reflection/{{ row['id'] }}">
-            編集
-        </a>
+        </div>
 
-<       a href="/delete_reflection/{{ row['id'] }}"
-          onclick="return confirm('削除しますか？')">
-            削除
-        </a>
+        <div class="reflection-buttons">
+
+            <a class="edit-btn"
+               href="/edit_reflection/{{ row['id'] }}">
+                ✏️ 編集
+            </a>
+
+            <a class="delete-btn"
+               href="/delete_reflection/{{ row['id'] }}"
+               onclick="return confirm('削除しますか？')">
+                🗑️ 削除
+            </a>
+
+        </div>
 
     </div>
 

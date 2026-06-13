@@ -2,32 +2,46 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
     <title>ログイン</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
 <div class="container">
 
-    <h1>吹奏楽部反省アプリ</h1>
+    <div class="card">
 
-    <form method="POST">
+        <h1>🎺 吹奏楽部<br>反省アプリ</h1>
 
-        <input
-            type="text"
-            name="group_code"
-            placeholder="団体コード"
-            required>
+        <p class="subtitle">
+            団体コードを入力してください
+        </p>
 
-        <button type="submit">
-            ログイン
-        </button>
+        <form method="POST">
 
-    </form>
+            <input
+                type="text"
+                name="group_code"
+                placeholder="団体コード"
+                required>
 
-    <a class="menu-btn" href="/create_group">
-        団体作成
-    </a>
+            <button type="submit">
+                ログイン
+            </button>
+
+        </form>
+
+        <a class="menu-btn" href="/create_group">
+            ➕ 団体作成
+        </a>
+
+    </div>
 
 </div>
 
